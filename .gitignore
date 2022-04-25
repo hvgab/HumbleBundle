@@ -7,3 +7,6 @@ selenium/Local State
 {USER_DATA_DIR}/Default/Preferences
 {USER_DATA_DIR}/First Run
 {USER_DATA_DIR}/Local State
+get_keys_1.json
+https--www-humblebundle-com-membership-december-2021.json
+humblebundle/db.sqlite3
