@@ -8,11 +8,13 @@ from django.db import models
 class Game(models.Model):
     platform = models.CharField(max_length=32, blank=True, null=True)
     title = models.CharField(max_length=128, blank=True, null=True)
+    subtitle = models.CharField(max_length=128, blank=True, null=True)
     paragraph = models.CharField(max_length=256, blank=True, null=True)
     game_link_text = models.CharField(max_length=256, blank=True, null=True)
     game_link_href = models.URLField(blank=True, null=True)
     choice_url = models.URLField(blank=True, null=True)
     is_redeemed = models.BooleanField(blank=True, null=True)
+    drm_free_dl_links = models.JSONField(blank=True, null=True)
 
     class Meta:
         constraints = [

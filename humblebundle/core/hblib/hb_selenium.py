@@ -242,64 +242,164 @@ class HumbleBundle():
 
 
     def get_drmfree_from_purchases(self):
-        print('Get unredeemed choices')
-        self.driver.get(choice_url)
+        print('Get drm free')
+        self.driver.get(PURCHASES)
 
-        wait = WebDriverWait(self.driver, 500)
+        # when using wait, time out after 3 seconds
+        wait = WebDriverWait(self.driver, 3)
 
-        print('wait for table')
-        # wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'unredeemed-keys-table')))
-        sleep(2)
+        # All the keys to loop
+        keys = []
+        # The result to return
+        result = []
 
-        choices = self.driver.find_elements(By.CLASS_NAME, 'content-choice')
+        # Loop pages and get keys
+        print('looping purchase pages')
+        has_next = True
+        while has_next:
 
-        scraped_data = []
+            # Entire site is js hidden and shown
+            # purchase site is js-purchase-holder
 
-        for choice in choices:
-            classes = choice.get_attribute('class')
-            print(f'{classes=}')
+            purchase_holder = self.driver.find_element(By.CLASS_NAME, 'js-purchase-holder')
 
-            is_redeemed = False
-            if 'claimed' in classes:
-                is_redeemed = True
-            
-            # title
-            title_elem = choice.find_element(By.CLASS_NAME, 'content-choice-title')
-            title = title_elem.text
-            gamename_link_href = self.driver.current_url
-            
-            # platform
-            delivery_methods_elem = choice.find_element(By.CLASS_NAME, 'delivery-methods')
-            platform_element = delivery_methods_elem.find_element(By.TAG_NAME, 'i')
-            platform = platform_element.get_attribute('aria-label')
-            scraped_data.append(
-                Game(
-                    platform=platform,
-                    title=title,
-                    paragraph=None,
-                    game_link_text=None,
-                    game_link_href=gamename_link_href,
-                    choice_url=gamename_link_href,
-                    is_redeemed = is_redeemed
-                )
-            )
-            
-        pprint(scraped_data)
+            page_keys = []
+            print('getting keys from page')
+            rows = purchase_holder.find_elements(By.CLASS_NAME, 'row')
+            for row in rows:
+                key = row.get_attribute('data-hb-gamekey')
+                page_keys.append(key)
 
-        # print('save to json')
-        # filename = gamename_link_href.replace(':', '').replace('/','-').replace('.', '-')
-        # with open(f'{filename}.json', 'w') as json_file:
-        #     json.dump(scraped_data, json_file, indent=4)
-        # print('saved')
+            print('Page keys:')
+            pprint(page_keys)
+            keys.extend(page_keys)
 
-        # print('Bulk create to database')
-        # Game.objects.bulk_create(scraped_data, batch_size=100, ignore_conflicts=True)        
-        return scraped_data
+            print('find pagination and next button')
+            pagination = purchase_holder.find_element(By.CLASS_NAME, 'pagination')
+            try:
+                next = pagination.find_element(By.CLASS_NAME, 'hb-chevron-right').click()
+            except:
+                print('Does not have next...')
+                has_next = False
 
+        print('Looping keys...')
+        for key in keys:
+            url = f'https://www.humblebundle.com/downloads?key={key}'
+            self.driver.get(url)
+            print("\n\n")
+            print(url)
+            print("\n\n")
+
+            self.driver.execute_script("window.scrollTo(0, 500)")
+
+            sleep(0.5)
+
+            print('wait for download')
+            try:
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'js-all-downloads-holder')), "message string on wait until")
+                print('Found downloads holder')
+            except Exception as e:
+                print('no downloads found')
+                print(e)
+                print('continue')
+                continue
+
+            js_all_downloads_holder_elem = self.driver.find_element(By.CLASS_NAME, 'js-all-downloads-holder')
+
+            # can have multiple downloads row, game, audio, ebook, etc
+            wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'wrapper')), "No wrapper?")
+            wrapper_elems = js_all_downloads_holder_elem.find_elements(By.CLASS_NAME, 'wrapper')
+            print(f'wrapper_elems: {wrapper_elems}')
+
+            if len(wrapper_elems) == 0:
+                input('why is wrapper 0?')
+
+            # wrapper
+            print('for wrapper_elem in wrapper_elems')
+            for wrapper_i in range(len(js_all_downloads_holder_elem.find_elements(By.CLASS_NAME, 'wrapper'))):
+                wrapper_elem = js_all_downloads_holder_elem.find_elements(By.CLASS_NAME, 'wrapper')[wrapper_i]
+                print('wrapper...')
+
+                # get platforms
+                platform_elems = wrapper_elem.find_element(By.CLASS_NAME, 'dlplatform-list').find_elements(By.CLASS_NAME, 'js-platform-button')
+
+                # wrapper dict
+                temp_dict = {}
+
+                # for platform, for dltype
+                print('for platform, for dltype')
+                for platform_i in range(len(platform_elems)):
+                    wrapper_elem = js_all_downloads_holder_elem.find_elements(By.CLASS_NAME, 'wrapper')[wrapper_i]
+                    platform_elems = wrapper_elem.find_element(By.CLASS_NAME, 'dlplatform-list').find_elements(By.CLASS_NAME, 'js-platform-button')
+                    platform_elem = platform_elems[platform_i]
+                    print(f'clicking {platform_elem.text=}')
+                    platform_elem.click()
+
+                    # get download types
+                    # Get inside platform to escape stale elements
+                    wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'dltype')))
+                    wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'flexbtn')))
+                    dltype_elems = wrapper_elem.find_element(By.CLASS_NAME, 'dltype').find_elements(By.CLASS_NAME, 'flexbtn')
+
+                    for dltype_elem in dltype_elems:
+                        print(f'clicking {dltype_elem.text=}')
+                        platform_elem.click()
+
+                        current_platform = platform_elem.get_attribute('data-platform')
+                        current_dltype = dltype_elem.get_attribute('data-type')
+                        current_platform_dltype_combo = f'{current_platform}_{current_dltype}'
+
+                        # Get game, platform, dl_link
+                        rows = wrapper_elem.find_elements(By.CLASS_NAME, 'row')
+                        print('for row in rows')
+                        for row in rows:
+                            title = row.find_element(By.CLASS_NAME, 'title').text
+                            print(f'{title=}')
+                            subtitle = row.find_element(By.CLASS_NAME, 'subtitle').text
+                            print(f'{subtitle=}')
+
+                            download = row.find_element(By.CLASS_NAME, 'js-start-download')
+                            download_href = download.find_element(By.TAG_NAME, 'a').get_attribute('href')
+                            print(f'{download_href=}')
+
+
+                            if title not in temp_dict.keys():
+                                print(f'adding {title} to temp_dict')
+                                temp_dict[title] = {}
+                                temp_dict[title]['title'] = title
+                                temp_dict[title]['subtitle'] = subtitle
+
+                            if 'drm_free_links' not in temp_dict[title]:
+                                temp_dict[title]['drm_free_links'] = {}
+                            temp_dict[title]['drm_free_links'][current_platform_dltype_combo] = download_href
+
+                            if current_platform not in temp_dict[title]['drm_free_links']:
+                                temp_dict[title]['drm_free_links'][current_platform] = {}
+                            temp_dict[title]['drm_free_links'][current_platform][current_dltype] = download_href
+
+                            temp_dict[title]['humble_bundle_page_link'] = url
+
+                            print(f'tempdict for {title}')
+                            pprint(temp_dict[title])
+                        
+                wrapper_dict = temp_dict
+
+                print('wrapper dict')
+                pprint(wrapper_dict)
+
+                print('wrapper dict values')
+                pprint(wrapper_dict.values())
+
+                result.extend(wrapper_dict.values())
+
+                print('result')
+                pprint(result, indent=2)
+
+        return result
 
 if __name__ == '__main__':
     hb = HumbleBundle()
     hb.login()
     # hb.get_keys()
-    hb.get_unredeemed_choices('https://www.humblebundle.com/membership/december-2021')
+    hb.get_drmfree_from_purchases()
 
