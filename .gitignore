@@ -1,0 +1,9 @@
+
+.env
+geckodriver.log
+selenium/Default/Preferences
+selenium/First Run
+selenium/Local State
+{USER_DATA_DIR}/Default/Preferences
+{USER_DATA_DIR}/First Run
+{USER_DATA_DIR}/Local State
