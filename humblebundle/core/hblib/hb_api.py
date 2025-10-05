@@ -1,21 +1,13 @@
 from lib2to3.pgen2 import driver
 from platform import platform
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+
 from pprint import pprint
 from time import sleep
 from dotenv import load_dotenv
 import os
 import json
-from ..models import Game
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
+from core.models import Game
+import requests
 
 load_dotenv()
 
@@ -28,48 +20,45 @@ KEYS = "https://www.humblebundle.com/home/keys"
 
 class HumbleBundle:
     def __init__(self):
-        # self.driver = webdriver.Firefox()
-        USER_DATA_DIR = (
-            "C:\\Users\\henri\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 3"
-        )
-        chrome_options = Options()
-        chrome_options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
-        # chrome_options.add_argument(f'--profile-directory={USER_DATA_DIR}')
-        # chrome_options.add_argument(f'--profile-directory="Profile 3"')
-
-        self.driver = webdriver.Chrome(
-            service=ChromeService(ChromeDriverManager().install())
-        )
-        # self.driver = webdriver.Chrome(options=chrome_options)
-
-        self.choices_urls = []
+        self.session = requests.Session()
 
     def login(self):
-        self.driver.get(BASE_URL + "/login")
+        url = "https://www.humblebundle.com/processlogin"
 
-        # Already logged in
-        if self.driver.current_url == "https://www.humblebundle.com/home/library":
-            self.is_logged_in = True
-            return
+        code = int(input("AUTH CODE: "))
+
+        form_data = {
+            "username": os.getenv("USERNAME"),
+            "password": os.getenv("PASSWORD"),
+            "code": code,
+        }
+
+        print("Form Data:")
+        print(form_data)
 
         # Do log in
-        USERNAME = os.getenv("USERNAME")
-        # username_input = self.driver.find_element_by_name("username")
-        username_input = self.driver.find_element("name", "username")
+        r = self.session.post(url, data=form_data)
 
-        username_input.send_keys(USERNAME)
+        print(r.content)
+        print(r.cookies)
+        print(r.ok)
+        print(r.raw)
 
-        PASSWORD = os.getenv("PASSWORD")
-        password_input = self.driver.find_element("name", "password")
-        password_input.send_keys(PASSWORD)
-
-        password_input.send_keys(Keys.RETURN)
-
-        # Just do an input here for 2fa ++
-        input("Press enter when logged in.")
         self.is_logged_in = True
 
         return
+
+    def get_orders(self):
+        print("Get Orders")
+        r = self.session.get("https://humblebundle.com/api/v1/user/order")
+        for row in r.json():
+            print(f"Order Gamekey: {row['gamekey']}")
+
+    def get_order(self, gamekey):
+        print(f"Get Order {gamekey}")
+        r = self.session.get(f"https://humblebundle.com/api/v1/user/order/{gamekey}")
+        pprint(r.json())
+        input("Neste?")
 
     def get_purchases(self):
         print("Get Purchases")
@@ -148,106 +137,18 @@ class HumbleBundle:
         return keys
 
     def get_keys(self):
-        print("Get keys")
-        self.driver.get(KEYS)
-
-        wait = WebDriverWait(self.driver, 500)
-
-        print("Hide redeemed keys")
-        # click to hide redeemed keys
-        hide_redeemed = "xpath=//label[contains(.,'Hide redeemed keys & entitlements')]"
-        wait.until(EC.presence_of_element_located((By.ID, "hide-redeemed")))
-        self.driver.find_element(By.ID, "hide-redeemed").click()
-
-        print("wait for table")
-        # wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'unredeemed-keys-table')))
-        sleep(2)
-
-        print("Has next?")
-        has_next = True
-
         scraped_data = []
-
-        while has_next:
-            pagination = self.driver.find_element(By.CLASS_NAME, "pagination")
-            try:
-                next = pagination.find_element(By.CLASS_NAME, "hb-chevron-right")
-                has_next = True
-            except:
-                print("Does not have next...")
-                has_next = False
-
-            print("scrolling")
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
-            self.driver.execute_script("window.scrollTo(0, 0)")
-
-            # self.driver.implicitly_wait(10)
-
-            table = self.driver.find_element(By.CLASS_NAME, "unredeemed-keys-table")
-            tbody = table.find_element(By.TAG_NAME, "tbody")
-
-            rows = tbody.find_elements(By.TAG_NAME, "tr")
-
-            for row in rows:
-                tds = row.find_elements(By.TAG_NAME, "td")
-
-                platform = None
-                platform = row.find_element(By.CLASS_NAME, "platform").text
-                print(f"{platform=}")
-
-                gamename_title = None
-                gamename_element = row.find_element(By.CLASS_NAME, "game-name")
-                gamename_title = gamename_element.find_element(By.TAG_NAME, "h4").text
-                print(f"{gamename_title=}")
-
-                gamename_p = None
-                try:
-                    gamename_p = gamename_element.find_element(By.TAG_NAME, "p").text
-                    print(f"{gamename_p=}")
-                except:
-                    pass
-                print(f"{gamename_p=}")
-
-                gamename_link_text = None
-                gamename_link_href = None
-                try:
-                    gamename_link = gamename_element.find_element(By.TAG_NAME, "a")
-                    gamename_link_text = gamename_link.text
-                    gamename_link_href = gamename_link.get_attribute("href")
-                except:
-                    pass
-                print(f"{gamename_link_text=}")
-                print(f"{gamename_link_href=}")
-
-                choice_url = None
-                try:
-                    choice_url = row.find_element(
-                        By.CLASS_NAME, "choice-button"
-                    ).get_attribute("href")
-                except:
-                    pass
-                print(f"{choice_url=}")
-
-                scraped_data.append(
-                    Game(
-                        platform=platform,
-                        title=gamename_title,
-                        paragraph=gamename_p,
-                        game_link_text=gamename_link_text,
-                        game_link_href=gamename_link_href,
-                        choice_url=choice_url,
-                        is_redeemed=False,
-                    )
-                )
-
-            if has_next:
-                print("Next page!")
-                next.click()
-
-        pprint(scraped_data)
-
-        # with open('get_keys_1.json', 'w') as json_file:
-        #     json.dump(scraped_data, json_file)
+        scraped_data.append(
+            Game(
+                platform=platform,
+                title="gamename_title",
+                paragraph="gamename_p",
+                game_link_text="gamename_link_text",
+                game_link_href="gamename_link_href",
+                choice_url="choice_url",
+                is_redeemed=False,
+            )
+        )
 
         for game in scraped_data:
             if game.platform == "HUMBLE BUNDLE":
@@ -534,5 +435,4 @@ class HumbleBundle:
 if __name__ == "__main__":
     hb = HumbleBundle()
     hb.login()
-    # hb.get_keys()
-    hb.get_drmfree_from_purchases()
+    hb.get_orders()

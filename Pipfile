@@ -8,6 +8,7 @@ django = "*"
 requests = "*"
 selenium = "*"
 python-dotenv = "*"
+webdriver-manager = "*"
 
 [dev-packages]
 

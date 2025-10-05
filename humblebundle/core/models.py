@@ -24,3 +24,12 @@ class Game(models.Model):
     def __str__(self) -> str:
         return self.title
 
+
+class Purchase(models.Model):
+    key = models.CharField(max_length=64)
+    product_name = models.CharField(max_length=128)
+    order_placed = models.CharField(max_length=32)
+    order_total = models.CharField(max_length=16)
+
+    def __str__(self):
+        return self.product_name
